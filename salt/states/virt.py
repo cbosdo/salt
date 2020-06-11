@@ -295,7 +295,28 @@ def defined(
 
     :param name: name of the virtual machine to run
     :param cpu: number of CPUs for the virtual machine to create
-    :param mem: amount of memory in MiB for the new virtual machine
+    :param mem: Amount of memory to allocate to the virtual machine in MiB. Since Magnesium, a dictionary can be used to
+        contain detailed configuration which support memory allocation or tuning. Supported parameters are ``boot``,
+        ``current``, ``max``, ``slots``, ``hard_limit``, ``soft_limit``, ``swap_hard_limit`` and ``min_guarantee``. The
+        structure of the dictionary is documented in  :ref:`init-mem-def`. Both decimal and binary base are supported.
+        Detail unit specification is documented  in :ref:`virt-units`. Please note that the value for ``slots`` must be
+        an integer.
+
+        .. code-block:: python
+
+            {
+                'boot': 1g,
+                'current': 1g,
+                'max': 1g,
+                'slots': 10,
+                'hard_limit': '1024'
+                'soft_limit': '512m'
+                'swap_hard_limit': '1g'
+                'min_guarantee': '512mib'
+            }
+
+        .. versionchanged:: Magnesium
+
     :param vm_type: force virtual machine type for the new VM. The default value is taken from
         the host capabilities. This could be useful for example to use ``'qemu'`` type instead
         of the ``'kvm'`` one.
@@ -342,6 +363,23 @@ def defined(
         pass a None object, for instance: 'kernel': ``None``.
 
         .. versionadded:: 3000
+
+    :param memtune:
+        Specifies hard_limit, soft_limit, swap_hard_limit and min_guarantee parameters for tuning the memory of the
+        domain. This is an optional parameter, all of the keys are optional within the dictionary. The structure of the
+        dictionary is documented in :ref:`init-memtune-def`. Both decimal and binary base are supported. Detail unit
+        specification is documented in :ref:`virt-units`
+
+        .. versionadded:: Magnesium
+
+        .. code-block:: python
+
+            {
+                'hard_limit': '1024'
+                'soft_limit': '512m'
+                'swap_hard_limit': '1g'
+                'min_guarantee': '512mib'
+            }
 
     :param update: set to ``False`` to prevent updating a defined domain. (Default: ``True``)
 
@@ -483,7 +521,23 @@ def running(
 
     :param name: name of the virtual machine to run
     :param cpu: number of CPUs for the virtual machine to create
-    :param mem: amount of memory in MiB for the new virtual machine
+    :param mem: Amount of memory to allocate to the virtual machine in MiB. Since Magnesium, a dictionary can be used to
+        contain detailed configuration which support memory allocation or tuning. Supported parameters are ``boot``,
+        ``current``, ``max``, ``slots``, ``hard_limit``, ``soft_limit``, ``swap_hard_limit`` and ``min_guarantee``. The
+        structure of the dictionary is documented in  :ref:`init-mem-def`. Both decimal and binary base are supported.
+        Detail unit specification is documented  in :ref:`virt-units`. Please note that the value for ``slots`` must be
+        an integer.
+
+        To remove any parameters, pass a None object, for instance: 'soft_limit': ``None``. Please note  that ``None``
+        is mapped to ``null`` in sls file, pass ``null`` in sls file instead.
+
+        .. code-block:: yaml
+
+            - mem:
+                hard_limit: null
+                soft_limit: null
+
+        .. versionchanged:: Magnesium
     :param vm_type: force virtual machine type for the new VM. The default value is taken from
         the host capabilities. This could be useful for example to use ``'qemu'`` type instead
         of the ``'kvm'`` one.
@@ -568,6 +622,17 @@ def running(
         pass a None object, for instance: 'kernel': ``None``.
 
         .. versionadded:: 3000
+
+    :param memtune:
+        Specifies hard_limit, soft_limit, swap_hard_limit and min_guarantee parameters for tuning the memory of the
+        domain. This is an optional parameter, all of the keys are optional within the dictionary. The structure of the
+        dictionary is documented in :ref:`init-memtune-def`.
+
+        To update any memtune parameters, specify the new value. Detailed unit specification is documented in
+        :ref:`virt-units`. To remove any memtune parameters, pass a None object, for instance: 'soft_limit': ``None``.
+        Please note that ``None`` is mapped to ``null`` in sls file, pass ``null`` in sls file instead.
+
+        .. versionadded:: Magnesium
 
     .. rubric:: Example States
 
