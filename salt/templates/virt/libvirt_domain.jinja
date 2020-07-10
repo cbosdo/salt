@@ -26,38 +26,38 @@
             {%- endif %}
         </memtune>
         {%- endif %}
-        <os {{boot.os_attrib}}>
+        <os {{ boot.os_attrib }}>
                 <type arch='{{ arch }}'>{{ os_type }}</type>
-                {% if boot %}
-                  {% if 'kernel' in boot %}
+                {%- if boot %}
+                  {%- if 'kernel' in boot and boot.kernel %}
                     <kernel>{{ boot.kernel }}</kernel>
-                  {% endif %}
-                  {% if 'initrd' in boot %}
+                  {%- endif %}
+                  {%- if 'initrd' in boot and boot.initrd %}
                     <initrd>{{ boot.initrd }}</initrd>
-                  {% endif %}
-                  {% if 'cmdline' in boot %}
+                  {%- endif %}
+                  {%- if 'cmdline' in boot and boot.cmdline %}
                     <cmdline>{{ boot.cmdline }}</cmdline>
-                  {% endif %}
-                  {% if 'loader' in boot %}
+                  {%- endif %}
+                  {%- if 'loader' in boot and boot.loader %}
                     <loader readonly='yes' type='pflash'>{{ boot.loader }}</loader>
-                  {% endif %}
-                  {% if 'nvram' in boot %}
+                  {%- endif %}
+                  {%- if 'nvram' in boot and boot.nvram %}
                     <nvram template='{{boot.nvram}}'></nvram>
-                  {% endif %}
-                {% endif %}
-                {% for dev in boot_dev %}
+                  {%- endif %}
+                {%- endif %}
+                {%- for dev in boot_dev %}
                 <boot dev='{{ dev }}' />
-                {% endfor %}
+                {%- endfor %}
         </os>
         <devices>
-                {% for disk in disks %}
+                {%- for disk in disks %}
                 <disk type='{{ disk.type }}' device='{{ disk.device }}'>
-                        {% if disk.type == 'file' and 'source_file' in disk -%}
+                        {%- if disk.type == 'file' and 'source_file' in disk -%}
                         <source file='{{ disk.source_file }}' />
-                        {% endif %}
-                        {% if disk.type == 'volume' and 'pool' in disk -%}
+                        {%- endif %}
+                        {%- if disk.type == 'volume' and 'pool' in disk -%}
                         <source pool='{{ disk.pool }}' volume='{{ disk.volume }}' />
-                        {% endif %}
+                        {%- endif %}
                         {%- if disk.type == 'network' %}
                         <source protocol='{{ disk.protocol }}' name='{{ disk.volume }}'{% if disk.get('query') %} query='{{ disk.query }}'{% endif %}>
                           {%- for host in disk.get('hosts') %}
@@ -71,71 +71,71 @@
                         </source>
                         {%- endif %}
                         <target dev='{{ disk.target_dev }}' bus='{{ disk.disk_bus }}' />
-                        {% if disk.address -%}
+                        {%- if disk.address -%}
                         <address type='drive' controller='0' bus='0' target='0' unit='{{ disk.index }}' />
-                        {% endif %}
-                        {% if disk.driver -%}
+                        {%- endif %}
+                        {%- if disk.driver -%}
                         <driver name='qemu' type='{{ disk.format}}' cache='none' io='native'/>
-                        {% endif %}
+                        {%- endif %}
                 </disk>
-                {% endfor %}
+                {%- endfor %}
 
-                {% if controller_model %}
+                {%- if controller_model %}
                 <controller type='scsi' index='0' model='{{ controller_model }}' />
-                {% endif %}
+                {%- endif %}
 
-                {% for nic in nics %}
+                {%- for nic in nics %}
                 <interface type='{{ nic.type }}'>
                     <source {{ nic.type }}='{{ nic.source }}'/>
-                    {% if nic.get('mac') -%}
+                    {%- if nic.get('mac') -%}
                     <mac address='{{ nic.mac }}'/>
                     {%- endif %}
                     {% if nic.model %}<model type='{{ nic.model }}'/>{% endif %}
                 </interface>
-                {% endfor %}
-                {% if graphics %}
+                {%- endfor %}
+                {%- if graphics %}
                 <graphics type='{{ graphics.type }}'
-                          {% if graphics.listen.address %}
+                          {%- if graphics.listen.address %}
                           listen='{{ graphics.listen.address }}'
-                          {% endif %}
-                          {% if graphics.port %}
+                          {%- endif %}
+                          {%- if graphics.port %}
                           port='{{ graphics.port }}'
-                          {% endif %}
-                          {% if graphics.type == 'spice' and graphics.tls_port %}
+                          {%- endif %}
+                          {%- if graphics.type == 'spice' and graphics.tls_port %}
                           tlsPort='{{ graphics.tls_port }}'
-                          {% endif %}
+                          {%- endif %}
                           autoport='{{ 'no' if graphics.port or graphics.tls_port else 'yes' }}'>
                     <listen type='{{ graphics.listen.type }}'
-                            {% if graphics.listen.address %}
+                            {%- if graphics.listen.address %}
                             address='{{ graphics.listen.address }}'
-                            {% endif %}/>
+                            {%- endif %}/>
                 </graphics>
-                {% endif %}
-                {% if serial_type == 'pty' %}
+                {%- endif %}
+                {%- if serial_type == 'pty' %}
                 <serial type='pty'>
                         <target port='0'/>
                 </serial>
-                {% if console %}
+                {%- if console %}
                 <console type='pty'>
                         <target type='serial' port='0'/>
                 </console>
-                {% endif %}
-                {% endif %}
+                {%- endif %}
+                {%- endif %}
 
-                {% if serial_type == 'tcp' %}
+                {%- if serial_type == 'tcp' %}
                 <serial type='tcp'>
                         <source mode='bind' host='' service='{{ telnet_port }}'/>
                         <protocol type='telnet'/>
                         <target port='0'/>
                 </serial>
-                {% if console %}
+                {%- if console %}
                 <console type='tcp'>
                         <source mode='bind' host='' service='{{ telnet_port }}'/>
                         <protocol type='telnet'/>
                         <target type='serial' port='0'/>
                 </console>
-                {% endif %}
-                {% endif %}
+                {%- endif %}
+                {%- endif %}
 
         </devices>
         <features>
