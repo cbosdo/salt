@@ -2007,6 +2007,7 @@ def init(
             boot,
             **kwargs
         )
+        log.debug("New virtual machine definition: %s", vm_xml)
         conn.defineXML(vm_xml)
     except libvirt.libvirtError as err:
         conn.close()
@@ -2461,9 +2462,9 @@ def update(
                         _disk_volume_create(conn, all_disks[idx])
 
             if not test:
-                conn.defineXML(
-                    salt.utils.stringutils.to_str(ElementTree.tostring(desc))
-                )
+                xml_desc = ElementTree.tostring(desc)
+                log.debug("Update virtual machine definition: %s", xml_desc)
+                conn.defineXML(salt.utils.stringutils.to_str(xml_desc))
             status["definition"] = True
         except libvirt.libvirtError as err:
             conn.close()
