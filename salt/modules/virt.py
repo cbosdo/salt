@@ -96,6 +96,7 @@ import jinja2
 import jinja2.exceptions
 
 # Import salt libs
+import salt.utils.data
 import salt.utils.files
 import salt.utils.json
 import salt.utils.network
@@ -2352,70 +2353,202 @@ def update(
         cpu_node.set("current", str(cpu))
         need_update = True
 
+    def _set_node_text(node, value):
+        node.text = str(value)
+
+    def _set_loader(node, value):
+        _set_node_text(node, value)
+        if value is not None:
+            node.set("readonly", "yes")
+            node.set("type", "pflash")
+
+    def _set_nvram(node, value):
+        node.set("template", value)
+
+    def _set_with_mib_unit(node, value):
+        node.text = str(value)
+        node.set("unit", "MiB")
+
+    def _clean_node(parent_map, node, ignored=None):
+        has_text = node.text is not None and node.text.strip()
+        parent = parent_map.get(node)
+        if (
+            len(node.attrib.keys() - (ignored or [])) == 0
+            and not list(node)
+            and not has_text
+        ):
+            parent.remove(node)
+        # Clean parent nodes if needed
+        if parent is not None:
+            _clean_node(parent_map, parent)
+
+    def _del_text(parent_map, node):
+        parent = parent_map[node]
+        parent.remove(node)
+        _clean_node(parent, node)
+
+    def _del_attribute(attribute, ignored=None):
+        def _do_delete(parent_map, node):
+            if attribute not in node.keys():
+                return
+            node.attrib.pop(attribute)
+            _clean_node(parent_map, node, ignored)
+
+        return _do_delete
+
     # Update the kernel boot parameters
-    boot_tags = ["kernel", "initrd", "cmdline", "loader", "nvram"]
-    parent_tag = desc.find("os")
+    params_mapping = [
+        {"parameter": "boot", "path": "kernel", "xpath": "os/kernel"},
+        {"parameter": "boot", "path": "initrd", "xpath": "os/initrd"},
+        {"parameter": "boot", "path": "cmdline", "xpath": "os/cmdline"},
+        {
+            "parameter": "boot",
+            "path": "loader",
+            "xpath": "os/loader",
+            "set": _set_loader,
+        },
+        {"parameter": "boot", "path": "nvram", "xpath": "os/nvram", "set": _set_nvram},
+        # Update the memory, note that libvirt outputs all memory sizes in KiB
+        {
+            "parameter": "mem",
+            "path": "",
+            "xpath": "memory",
+            "get": lambda n: int(n.text) / 1024,
+            "set": _set_with_mib_unit,
+        },
+        {
+            "parameter": "mem",
+            "path": "",
+            "xpath": "currentMemory",
+            "get": lambda n: int(n.text) / 1024,
+            "set": _set_with_mib_unit,
+        },
+    ]
 
-    for tag in boot_tags:
-        # The Existing Tag...
-        found_tag = parent_tag.find(tag)
+    def _get_value(obj, path):
+        """
+        Get the values for a given path.
 
-        # The new value
-        boot_tag_value = boot.get(tag, None) if boot else None
+        :param path:
+            keys of the properties in the tree separated by colons.
+            One segment in the path can be replaced by an id surrounded by curly braces.
+            This will match all items in a list of dictionary.
 
-        # Existing tag is found and values don't match
-        if found_tag is not None and found_tag.text != boot_tag_value:
-            # If the existing tag is found, but the new value is None
-            # remove it. If the existing tag is found, and the new value
-            # doesn't match update it. In either case, mark for update.
-            if boot_tag_value is None and boot is not None and parent_tag is not None:
-                parent_tag.remove(found_tag)
-            else:
-                found_tag.text = boot_tag_value
+        :return:
+            a list of dictionaries, with at least the "value" key providing the actual value.
+            If a placeholder was used, the placeholder id will be a key providing the replacement for it.
+            Note that a value that wasn't found in the tree will be an empty list.
+            This ensures we can make the difference with a None value set by the user.
+        """
+        res = [{"value": obj}]
+        if path:
+            key = path[: path.find(":")] if ":" in path else path
+            next_path = path[path.find(":") + 1 :] if ":" in path else None
 
-            # If the existing tag is loader or nvram, we need to update the corresponding attribute
-            if found_tag.tag == "loader" and boot_tag_value is not None:
-                found_tag.set("readonly", "yes")
-                found_tag.set("type", "pflash")
+            if key.startswith("{") and key.endswith("}"):
+                placeholder_name = key[1:-1]
+                # There will be multiple values to get here
+                items = []
+                if obj is None:
+                    return res
+                if isinstance(obj, dict):
+                    items = obj.items()
+                elif isinstance(obj, list):
+                    items = enumerate(obj)
 
-            if found_tag.tag == "nvram" and boot_tag_value is not None:
-                found_tag.set("template", found_tag.text)
-                found_tag.text = None
+                def _append_placeholder(value_dict, key):
+                    value_dict[placeholder_name] = key
+                    return value_dict
 
-            need_update = True
+                values = [
+                    [
+                        _append_placeholder(item, key)
+                        for item in _get_value(val, next_path)
+                    ]
+                    for key, val in items
+                ]
 
-        # Existing tag is not found, but value is not None
-        elif found_tag is None and boot_tag_value is not None:
+                # flatten the list
+                values = [y for x in values for y in x]
+                return values
+            elif isinstance(obj, dict):
+                if key not in obj.keys():
+                    # We don't want to return None here since we want to differenciate from
+                    # a None value set by the user.
+                    return [{"value": []}]
 
-            # Need to check for parent tag, and add it if it does not exist.
-            # Add a subelement and set the value to the new value, and then
-            # mark for update.
-            if parent_tag is not None:
-                child_tag = ElementTree.SubElement(parent_tag, tag)
-            else:
-                new_parent_tag = ElementTree.Element("os")
-                child_tag = ElementTree.SubElement(new_parent_tag, tag)
+                value = obj.get(key)
+                if res is not None:
+                    res = _get_value(value, next_path)
+                else:
+                    res = [{"value": value}]
+        return res
 
-            child_tag.text = boot_tag_value
+    for param in params_mapping:
+        param_value = locals().get(param["parameter"])
+        xpath = param["xpath"]
+        # Prepend the xpath with ./ to handle the root more easily
+        if not xpath.startswith("./"):
+            xpath = "./{}".format(xpath)
 
-            # If the newly created tag is loader or nvram, we need to update the corresponding attribute
-            if child_tag.tag == "loader":
-                child_tag.set("readonly", "yes")
-                child_tag.set("type", "pflash")
+        if param_value:
+            complex_type = isinstance(param_value, list) or isinstance(
+                param_value, dict
+            )
 
-            if child_tag.tag == "nvram":
-                child_tag.set("template", child_tag.text)
-                child_tag.text = None
+            # Skip if the path value can't be matched
+            if param["path"] and not complex_type or not param["path"] and complex_type:
+                continue
 
-            need_update = True
+            # Get the value from the function parameter using the path-like description
+            # Using an empty list as a default value will cause values not provided by the user
+            # to be left untouched, as opposed to explicit None unsetting the value
+            values = _get_value(param_value, param["path"])
 
-    # Update the memory, note that libvirt outputs all memory sizes in KiB
-    for mem_node_name in ["memory", "currentMemory"]:
-        mem_node = desc.find(mem_node_name)
-        if mem and int(mem_node.text) != mem * 1024:
-            mem_node.text = str(mem)
-            mem_node.set("unit", "MiB")
-            need_update = True
+            for value_item in values:
+                new_value = value_item["value"]
+
+                # Only handle simple type values. Use multiple entries or a custom get for dict or lists
+                if isinstance(new_value, list) or isinstance(new_value, dict):
+                    continue
+
+                placeholders = [
+                    s[1:-1]
+                    for s in param["path"].split(":")
+                    if s.startswith("{") and s.endswith("}")
+                ]
+                ctx = {
+                    placeholder: string.Template("='$val'").substitute(
+                        val=value_item.get(placeholder, "")
+                    )
+                    if placeholder in value_item.keys()
+                    else ""
+                    for placeholder in placeholders
+                }
+                node_xpath = string.Template(xpath).substitute(ctx)
+
+                if new_value is not None:
+                    node = xmlutil.get_xml_node(desc, node_xpath)
+
+                    get_fn = param.get("get", lambda n: n.text)
+                    set_fn = param.get("set", _set_node_text)
+                    current_value = get_fn(node)
+
+                    # Do we need to apply some conversion to the user-provided value?
+                    convert_fn = param.get("convert")
+                    if convert_fn:
+                        new_value = convert_fn(new_value)
+
+                    if current_value != new_value:
+                        set_fn(node, new_value)
+                        need_update = True
+                else:
+                    nodes = desc.findall(node_xpath)
+                    parent_map = {c: p for p in desc.iter() for c in p}
+                    del_fn = param.get("del", _del_text)
+                    for node in nodes:
+                        del_fn(parent_map, node)
+                        need_update = True
 
     # Update the XML definition with the new disks and diff changes
     devices_node = desc.find("devices")
