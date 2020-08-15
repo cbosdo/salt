@@ -52,6 +52,82 @@
             {%- endif %}
           </cpu>
         {%- endif %}
+        {%- if cputune %}
+         <cputune>
+            {%- if cputune.vcpupin %}
+                {%- for vcpu_id, cpuset in cputune.vcpupin.items() %}
+                <vcpupin vcpu='{{ vcpu_id }}' {{ cpuset }}/>
+                {%- endfor %}
+            {%- endif %}
+            {%- if cputune.emulatorpin %}
+                <emulatorpin cpuset="{{ cputune.emulatorpin }}"/>
+            {%- endif %}
+            {%- if cputune.iothreadpin %}
+                {%- for thread_id, cpuset in cputune.iothreadpin.items() %}
+                <iothreadpin iothread='{{ thread_id }}' {{ cpuset }}/>
+                {%- endfor %}
+            {%- endif %}
+            {%- if cputune.shares %}
+                <shares>{{ cputune.shares }}</shares>
+            {%- endif %}
+            {%- if cputune.period %}
+                <period>{{ cputune.period }}</period>
+            {%- endif %}
+            {%- if cputune.quota %}
+                <quota>{{ cputune.quota }}</quota>
+            {%- endif %}
+            {%- if cputune.global_period %}
+                <global_period>{{ cputune.global_period }}</global_period>
+            {%- endif %}
+            {%- if cputune.global_quota %}
+                <global_quota>{{ cputune.global_quota }}</global_quota>
+            {%- endif %}
+            {%- if cputune.emulator_period %}
+                <emulator_period>{{ cputune.emulator_period }}</emulator_period>
+            {%- endif %}
+            {%- if cputune.emulator_quota %}
+                <emulator_quota>{{ cputune.emulator_quota }}</emulator_quota>
+            {%- endif %}
+            {%- if cputune.iothread_period %}
+                <iothread_period>{{ cputune.iothread_period }}</iothread_period>
+            {%- endif %}
+            {%- if cputune.iothread_quota %}
+                <iothread_quota>{{ cputune.iothread_quota }}</iothread_quota>
+            {%- endif %}
+            {%- if cputune.vcpusched %}
+                {%- for k, v in cputune.vcpusched.items() %}
+                <vcpusched vcpus='{{ k }}' {%- for atr, val in v.items() %} {{ atr }}='{{ val }}' {%- endfor %}/>
+                {%- endfor %}
+            {%- endif %}
+            {%- if cputune.iothreadsched %}
+                <iothreadsched {{ cputune.iothreadsched.get("iothreads", "") }} {{ cputune.iothreadsched.get("scheduler", "") }}/>
+            {%- endif %}
+            {%- if cputune.cachetune %}
+                {%- for k, v in cputune.cachetune.items() %}
+                <cachetune vcpus='{{ k }}'>
+                    {%- for e, atrs in v.items() %}
+                        {%- if e is number and atrs %}
+                             <cache id='{{ e }}' {%- for atr, val in atrs.items() %} {{ atr }}='{{ val }}' {%- endfor %} />
+                        {%- elif e is not number %}
+                             {%- for atr, val in atrs.items() %}
+                             <monitor level='{{ val }}' vcpus='{{ atr }}'/>
+                             {%- endfor %}
+                        {%- endif %}
+                    {%- endfor %}
+                </cachetune>
+                {%- endfor %}
+            {%- endif %}
+            {%- if cputune.memorytune %}
+                {%- for vcpus, nodes in cputune.memorytune.items() %}
+                <memorytune vcpus='{{ vcpus}}'>
+                    {%- for id, bandwidth in nodes.items() %}
+                         <node id='{{ id }}' bandwidth='{{ bandwidth }}'/>
+                    {%- endfor %}
+                </memorytune>
+                {%- endfor %}
+            {%- endif %}
+         </cputune>
+        {%- endif %}
         {%- if mem.max %}
         <maxMemory {{ opt_attribute(mem, 'slots') }} unit='KiB'>{{ to_kib(mem.max) }}</maxMemory>
         {%- endif %}
