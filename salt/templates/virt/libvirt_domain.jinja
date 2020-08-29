@@ -91,6 +91,35 @@
             {%- endif %}
         </numatune>
         {%- endif %}
+        {%- if mem %}
+        <memoryBacking>
+            {%- if mem.hugepages %}
+            <hugepages>
+            {%- for k, v in mem.hugepages.items() %}
+            <page size="{{ v }}"  nodeset='{{ k }}' unit="KiB"/>
+            {%- endfor %}
+            </hugepages>
+            {%- if mem.nosharepages %}
+            <nosharepages/>
+            {%- endif %}
+            {%- if mem.locked %}
+            <locked/>
+            {%- endif %}
+            {%- if mem.source %}
+            <source type="{{ mem.source }}"/>
+            {%- endif %}
+            {%- if mem.access %}
+            <access mode="{{ mem.access }}"/>
+            {%- endif %}
+            {%- if mem.allocation %}
+            <access mode="{{ mem.allocation }}"/>
+            {%- endif %}
+            {%- if mem.discard %}
+            <discard/>
+            {%- endif %}
+          {%- endif %}
+        </memoryBacking>
+        {%- endif %}
         <os {{ boot.os_attrib }}>
                 <type arch='{{ arch }}'>{{ os_type }}</type>
                 {% if boot %}

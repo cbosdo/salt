@@ -298,10 +298,10 @@ def defined(
         cpu model and topology. The structure of the dictionary is documented in :ref:`init-cpu-def`.
     :param mem: Amount of memory to allocate to the virtual machine in MiB. Since 3002, a dictionary can be used to
         contain detailed configuration which support memory allocation or tuning. Supported parameters are ``boot``,
-        ``current``, ``max``, ``slots``, ``hard_limit``, ``soft_limit``, ``swap_hard_limit`` and ``min_guarantee``. The
-        structure of the dictionary is documented in  :ref:`init-mem-def`. Both decimal and binary base are supported.
-        Detail unit specification is documented  in :ref:`virt-units`. Please note that the value for ``slots`` must be
-        an integer.
+        ``current``, ``max``, ``slots``, ``hard_limit``, ``soft_limit``, ``swap_hard_limit``, ``min_guarantee``,
+        ``hugepages`` ,  ``nosharepages``, ``locked``, ``source``, ``access``, ``allocation`` and ``discard``. The structure
+        of the dictionary is documented in  :ref:`init-mem-def`. Both decimal and binary base are supported. Detail unit
+        specification is documented  in :ref:`virt-units`. Please note that the value for ``slots`` must be an integer.
 
         .. code-block:: python
 
@@ -310,10 +310,17 @@ def defined(
                 'current': 1g,
                 'max': 1g,
                 'slots': 10,
-                'hard_limit': '1024'
-                'soft_limit': '512m'
-                'swap_hard_limit': '1g'
-                'min_guarantee': '512mib'
+                'hard_limit': '1024',
+                'soft_limit': '512m',
+                'swap_hard_limit': '1g',
+                'min_guarantee': '512mib',
+                'hugepages': {'0-2': '1g', '3': '2g'},
+                'nosharepages': True,
+                'locked': True,
+                'source': 'file',
+                'access': 'shared',
+                'allocation': 'immediate',
+                'discard': True
             }
 
         .. versionchanged:: 3002
@@ -542,10 +549,10 @@ def running(
         in sls file instead.
     :param mem: Amount of memory to allocate to the virtual machine in MiB. Since 3002, a dictionary can be used to
         contain detailed configuration which support memory allocation or tuning. Supported parameters are ``boot``,
-        ``current``, ``max``, ``slots``, ``hard_limit``, ``soft_limit``, ``swap_hard_limit`` and ``min_guarantee``. The
-        structure of the dictionary is documented in  :ref:`init-mem-def`. Both decimal and binary base are supported.
-        Detail unit specification is documented  in :ref:`virt-units`. Please note that the value for ``slots`` must be
-        an integer.
+        ``current``, ``max``, ``slots``, ``hard_limit``, ``soft_limit``, ``swap_hard_limit``, ``min_guarantee``,
+        ``hugepages`` ,  ``nosharepages``, ``locked``, ``source``, ``access``, ``allocation`` and ``discard``. The structure
+        of the dictionary is documented in  :ref:`init-mem-def`. Both decimal and binary base are supported. Detail unit
+        specification is documented  in :ref:`virt-units`. Please note that the value for ``slots`` must be an integer.
 
         To remove any parameters, pass a None object, for instance: 'soft_limit': ``None``. Please note  that ``None``
         is mapped to ``null`` in sls file, pass ``null`` in sls file instead.
