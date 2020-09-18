@@ -87,6 +87,7 @@ import shutil
 import string  # pylint: disable=deprecated-module
 import subprocess
 import sys
+import threading
 import time
 from xml.etree import ElementTree
 from xml.sax import saxutils
@@ -780,6 +781,7 @@ def _gen_xml(
     graphics=None,
     boot=None,
     boot_dev=None,
+    on_reboot="restart",
     **kwargs
 ):
     """
@@ -814,6 +816,7 @@ def _gen_xml(
     context["graphics"] = graphics
 
     context["boot_dev"] = boot_dev.split() if boot_dev is not None else ["hd"]
+    context["on_reboot"] = on_reboot
 
     context["boot"] = boot if boot else {}
 
@@ -1716,6 +1719,67 @@ def _handle_efi_param(boot, desc):
     return False
 
 
+class RebootThread(threading.Thread):
+    """
+    Thread listening for a VM to reboot.
+    Will stop after the reboot.
+    """
+
+    def __init__(self, conn, domain):
+        threading.Thread.__init__(self)
+        self.conn = conn
+        self.domain = domain
+        self.callback_id = None
+        self.exit_loop = False
+
+    def start(self):
+        # The callback is registered after the next shutdown in the callback itself
+        self.callback_id = self.conn.domainEventRegisterAny(
+            self.domain, libvirt.VIR_DOMAIN_EVENT_ID_LIFECYCLE, _restart_callback, self
+        )
+        super().start()
+
+    def run(self):
+        while not self.exit_loop:
+            libvirt.virEventRunDefaultImpl()
+        self.conn.close()
+
+
+def _restart_callback(cnx, domain, event, detail, data):
+    """
+    Libvirt domain lifecyle event callback removing the firstboot-only options
+    and taking cre of the VM restart.
+
+    The data parameter is the RebootThread associated with the callback.
+    """
+
+    def clean():
+        """
+        Deregister the callback and stop the thread
+        """
+        if data.callback_id is not None:
+            cnx.domainEventDeregisterAny(data.callback_id)
+            data.callback_id = None
+            data.exit_loop = True
+
+    if event == libvirt.VIR_DOMAIN_EVENT_STARTED:
+        # The VM has just started, reset the first-boot specific options
+        vm_desc = ElementTree.fromstring(domain.XMLDesc())
+        vm_desc.find(".//on_reboot").text = "restart"
+        os_node = vm_desc.find("os")
+        boot_node = os_node.find("./boot[@dev='cdrom']")
+        os_node.remove(boot_node)
+        cnx.defineXML(salt.utils.stringutils.to_str(ElementTree.tostring(vm_desc)))
+    if event == libvirt.VIR_DOMAIN_EVENT_CRASHED:
+        # VM crashed, just stop listening and cleanup
+        clean()
+    if event == libvirt.VIR_DOMAIN_EVENT_STOPPED:
+        # The first reboot happened. Since the VM was set to destroy, then restart it manually
+        # and stop waiting
+        clean()
+        domain.create()
+
+
 def init(
     name,
     cpu,
@@ -2023,6 +2087,10 @@ def init(
     .. _graphics element: https://libvirt.org/formatdomain.html#elementsGraphics
     """
     try:
+        # Ensure we have an event implementation if we need to listen to VM reboot
+        # This needs to be done before opening the connection
+        libvirt.virEventRegisterDefaultImpl()
+
         conn = __get_conn(**kwargs)
         caps = _capabilities(conn)
         os_types = sorted({guest["os_type"] for guest in caps["guests"]})
@@ -2057,10 +2125,14 @@ def init(
         # 3 - update the disks from the profile with the ones from the user. The matching key is the name.
         diskp = _disk_profile(conn, disk, virt_hypervisor, disks, name)
 
+        cdrom_boot = False
+
         # Create multiple disks, empty or from specified images.
         for _disk in diskp:
             # No need to create an image for cdrom devices
             if _disk.get("device", "disk") == "cdrom":
+                if _disk.get("source_file"):
+                    cdrom_boot = True
                 continue
 
             log.debug("Creating disk for VM [ %s ]: %s", name, _disk)
@@ -2138,6 +2210,12 @@ def init(
         if boot is not None:
             boot = _handle_remote_boot_params(boot)
 
+        boot_devices = boot_dev
+        on_reboot = "restart"
+        if boot_dev is None and cdrom_boot:
+            boot_devices = "cdrom hd"
+            on_reboot = "destroy"
+
         vm_xml = _gen_xml(
             conn,
             name,
@@ -2150,7 +2228,8 @@ def init(
             arch,
             graphics,
             boot,
-            boot_dev,
+            boot_devices,
+            on_reboot,
             **kwargs
         )
         log.debug("New virtual machine definition: %s", vm_xml)
@@ -2159,10 +2238,31 @@ def init(
         conn.close()
         raise CommandExecutionError(err.get_error_message())
 
+    close_connection = True
+    if cdrom_boot and boot_dev is None:
+        # Wait for the VM to show up and the prepare for first boot options reset
+        attempts = 0
+        domain = None
+        while domain is None:
+            time.sleep(0.1)
+            attempts += 1
+            if name in conn.listDefinedDomains():
+                domain = conn.lookupByName(name)
+            if attempts == 10:
+                log.warning("VM failed to show up on time, skipping listing for reboot")
+                break
+
+        if domain:
+            thread = RebootThread(conn, domain)
+            thread.start()
+            # Keep the connection opened since the thread will need it
+            close_connection = False
+
     if start:
         log.debug("Starting VM %s", name)
         _get_domain(conn, name).create()
-    conn.close()
+    if close_connection:
+        conn.close()
 
     return True
 

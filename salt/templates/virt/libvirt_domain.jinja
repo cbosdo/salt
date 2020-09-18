@@ -3,6 +3,7 @@
         <vcpu>{{ cpu }}</vcpu>
         <memory unit='KiB'>{{ mem }}</memory>
         <currentMemory unit='KiB'>{{ mem }}</currentMemory>
+        <on_reboot>{{ on_reboot }}</on_reboot>
         <os {{boot.os_attrib}}>
                 <type arch='{{ arch }}'>{{ os_type }}</type>
                 {% if boot %}
