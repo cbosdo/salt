@@ -51,59 +51,75 @@
             </numa>
             {%- endif %}
           </cpu>
+          {%- if cpu.iothreads %}
+          <iothreads>{{ cpu.iothreads }}</iothreads>
+          {%- endif %}
         {%- endif %}
-        {%- if cputune %}
+        {%- if cpu.tuning %}
          <cputune>
-            {%- if cputune.vcpupin %}
-                {%- for vcpu_id, cpuset in cputune.vcpupin.items() %}
-                <vcpupin vcpu='{{ vcpu_id }}' {{ cpuset }}/>
+            {%- if cpu.tuning.vcpupin %}
+                {%- for vcpu_id, cpuset in cpu.tuning.vcpupin.items() %}
+                <vcpupin vcpu='{{ vcpu_id }}' cpuset='{{ cpuset }}'/>
                 {%- endfor %}
             {%- endif %}
-            {%- if cputune.emulatorpin %}
-                <emulatorpin cpuset="{{ cputune.emulatorpin }}"/>
+            {%- if cpu.tuning.emulatorpin %}
+                <emulatorpin cpuset="{{ cpu.tuning.emulatorpin }}"/>
             {%- endif %}
-            {%- if cputune.iothreadpin %}
-                {%- for thread_id, cpuset in cputune.iothreadpin.items() %}
-                <iothreadpin iothread='{{ thread_id }}' {{ cpuset }}/>
+            {%- if cpu.tuning.iothreadpin %}
+                {%- for thread_id, cpuset in cpu.tuning.iothreadpin.items() %}
+                <iothreadpin iothread='{{ thread_id }}' cpuset='{{ cpuset }}'/>
                 {%- endfor %}
             {%- endif %}
-            {%- if cputune.shares %}
-                <shares>{{ cputune.shares }}</shares>
+            {%- if cpu.tuning.shares %}
+                <shares>{{ cpu.tuning.shares }}</shares>
             {%- endif %}
-            {%- if cputune.period %}
-                <period>{{ cputune.period }}</period>
+            {%- if cpu.tuning.period %}
+                <period>{{ cpu.tuning.period }}</period>
             {%- endif %}
-            {%- if cputune.quota %}
-                <quota>{{ cputune.quota }}</quota>
+            {%- if cpu.tuning.quota %}
+                <quota>{{ cpu.tuning.quota }}</quota>
             {%- endif %}
-            {%- if cputune.global_period %}
-                <global_period>{{ cputune.global_period }}</global_period>
+            {%- if cpu.tuning.global_period %}
+                <global_period>{{ cpu.tuning.global_period }}</global_period>
             {%- endif %}
-            {%- if cputune.global_quota %}
-                <global_quota>{{ cputune.global_quota }}</global_quota>
+            {%- if cpu.tuning.global_quota %}
+                <global_quota>{{ cpu.tuning.global_quota }}</global_quota>
             {%- endif %}
-            {%- if cputune.emulator_period %}
-                <emulator_period>{{ cputune.emulator_period }}</emulator_period>
+            {%- if cpu.tuning.emulator_period %}
+                <emulator_period>{{ cpu.tuning.emulator_period }}</emulator_period>
             {%- endif %}
-            {%- if cputune.emulator_quota %}
-                <emulator_quota>{{ cputune.emulator_quota }}</emulator_quota>
+            {%- if cpu.tuning.emulator_quota %}
+                <emulator_quota>{{ cpu.tuning.emulator_quota }}</emulator_quota>
             {%- endif %}
-            {%- if cputune.iothread_period %}
-                <iothread_period>{{ cputune.iothread_period }}</iothread_period>
+            {%- if cpu.tuning.iothread_period %}
+                <iothread_period>{{ cpu.tuning.iothread_period }}</iothread_period>
             {%- endif %}
-            {%- if cputune.iothread_quota %}
-                <iothread_quota>{{ cputune.iothread_quota }}</iothread_quota>
+            {%- if cpu.tuning.iothread_quota %}
+                <iothread_quota>{{ cpu.tuning.iothread_quota }}</iothread_quota>
             {%- endif %}
-            {%- if cputune.vcpusched %}
-                {%- for k, v in cputune.vcpusched.items() %}
-                <vcpusched vcpus='{{ k }}' {%- for atr, val in v.items() %} {{ atr }}='{{ val }}' {%- endfor %}/>
+            {%- if cpu.tuning.vcpusched %}
+                {%- for sched in cpu.tuning.vcpusched %}
+                <vcpusched scheduler='{{ sched.scheduler }}'
+                    {%- if sched.get("vcpus") %} vcpus='{{ sched.get("vcpus") }}'{% endif -%}
+                    {%- if sched.get("priority") is not none %} priority='{{ sched.get("priority") }}'{% endif -%}
+                />
                 {%- endfor %}
             {%- endif %}
-            {%- if cputune.iothreadsched %}
-                <iothreadsched {{ cputune.iothreadsched.get("iothreads", "") }} {{ cputune.iothreadsched.get("scheduler", "") }}/>
+            {%- if cpu.tuning.iothreadsched %}
+                {%- for sched in cpu.tuning.iothreadsched %}
+                <iothreadsched scheduler='{{ sched.scheduler }}'
+                    {%- if sched.get("iothreads") %} iothreads='{{ sched.get("iothreads") }}'{% endif -%}
+                    {%- if sched.get("priority") is not none %} priority='{{ sched.get("priority") }}'{% endif -%}
+                />
+                {%- endfor %}
             {%- endif %}
-            {%- if cputune.cachetune %}
-                {%- for k, v in cputune.cachetune.items() %}
+            {%- if cpu.tuning.emulatorsched %}
+                <emulatorsched scheduler='{{ cpu.tuning.emulatorsched.scheduler }}'
+                    {%- if cpu.tuning.emulatorsched.get("priority") is not none %} priority='{{ cpu.tuning.emulatorsched.get("priority") }}'{% endif -%}
+                />
+            {%- endif %}
+            {%- if cpu.tuning.cachetune %}
+                {%- for k, v in cpu.tuning.cachetune.items() %}
                 <cachetune vcpus='{{ k }}'>
                     {%- for e, atrs in v.items() %}
                         {%- if e is number and atrs %}
@@ -117,8 +133,8 @@
                 </cachetune>
                 {%- endfor %}
             {%- endif %}
-            {%- if cputune.memorytune %}
-                {%- for vcpus, nodes in cputune.memorytune.items() %}
+            {%- if cpu.tuning.memorytune %}
+                {%- for vcpus, nodes in cpu.tuning.memorytune.items() %}
                 <memorytune vcpus='{{ vcpus}}'>
                     {%- for id, bandwidth in nodes.items() %}
                          <node id='{{ id }}' bandwidth='{{ bandwidth }}'/>

@@ -1974,18 +1974,17 @@ def init(
                     iothread_period: 1000000
                     iothread_quota: -1
                     vcpusched:
-                      0:        # vcpus id
-                        scheduler: fifo
+                      - scheduler: fifo
                         priority: 1
-                      1:
-                        scheduler: fifo
-                        priority: 2
-                      2:
-                        scheduler: rr
+                        vcpus: 0,3-5
+                      - scheduler: rr
                         priority: 3
                     iothreadsched:
-                        iothreads: 2
-                        scheduler: batch
+                      - scheduler: idle
+                      - scheduler: batch
+                        iothreads: 2,3
+                    emulatorsched:
+                      - scheduler: batch
                     cachetune:
                       0-3:      # vcpus set
                         0:      # cache id
@@ -2245,13 +2244,21 @@ def init(
         The optional iothread_quota element specifies the maximum allowed bandwidth (unit: microseconds) for IOThreads.
 
     vcpusched
-        specify the scheduler type (values batch, idle, fifo, rr) for particular vCPU.
+        specify the scheduler type for vCPUs.
+        The value is a list of dictionaries with the ``scheduler`` key (values ``batch``, ``idle``, ``fifo``, ``rr``)
+        and the optional ``priority`` and ``vcpus`` keys. The ``priority`` value usually is a positive integer and the
+        ``vcpus`` value is a cpu set like ``1-4,^3,6`` or simply the vcpu id.
 
     iothreadsched
-        specify the scheduler type (values batch, idle, fifo, rr) for particular IOThread.
+        specify the scheduler type for IO threads.
+        The value is a list of dictionaries with the ``scheduler`` key (values ``batch``, ``idle``, ``fifo``, ``rr``)
+        and the optional ``priority`` and ``vcpus`` keys. The ``priority`` value usually is a positive integer and the
+        ``vcpus`` value is a cpu set like ``1-4,^3,6`` or simply the vcpu id.
 
     emulatorsched
-        specify the scheduler type (values batch, idle, fifo, rr) for particular emulator threads.
+        specify the scheduler type (values batch, idle, fifo, rr) for particular the emulator.
+        The value is a dictionary with the ``scheduler`` key (values ``batch``, ``idle``, ``fifo``, ``rr``)
+        and the optional ``priority`` and ``vcpus`` keys. The ``priority`` value usually is a positive integer.
 
     cachetune
         Optional cachetune element can control allocations for CPU caches using the resctrl on the host.
@@ -3406,66 +3413,89 @@ def update(
         },
         {
             "path": "cpu:tuning:vcpusched:{id}:scheduler",
-            "xpath": "cputune/vcpusched[@vcpus='$id']",
-            "get": lambda n: str(n.get("scheduler")) if n.get("scheduler") else None,
+            "xpath": "cputune/vcpusched[$id]",
+            "get": lambda n: str(n.get("scheduler")),
             "set": lambda n, v: n.set("scheduler", str(v)),
-            "del": salt.utils.xmlutil.del_attribute("scheduler", ["vcpus"]),
+            "del": salt.utils.xmlutil.del_attribute("scheduler", ["priority", "vcpus"]),
         },
         {
             "path": "cpu:tuning:vcpusched:{id}:priority",
-            "xpath": "cputune/vcpusched[@vcpus='$id']",
+            "xpath": "cputune/vcpusched[$id]",
             "get": lambda n: str(n.get("priority")) if n.get("priority") else None,
             "set": lambda n, v: n.set("priority", str(v)),
-            "del": salt.utils.xmlutil.del_attribute("priority", ["vcpus"]),
+            "del": salt.utils.xmlutil.del_attribute("priority"),
         },
         {
-            "path": "cpu:tuning:iothreadsched:iothreads",
-            "xpath": "cputune/iothreadsched",
-            "get": lambda n: str(n.get("iothreads")) if n.get("iothreads") else None,
-            "set": lambda n, v: n.set("iothreads", str(v)),
-            "del": salt.utils.xmlutil.del_attribute("iothreads", []),
-        },
-        {
-            "path": "cpu:tuning:iothreadsched:scheduler",
-            "xpath": "cputune/iothreadsched",
-            "get": lambda n: str(n.get("iothreads")) if n.get("scheduler") else None,
-            "set": lambda n, v: n.set("scheduler", str(v)),
-            "del": salt.utils.xmlutil.del_attribute("scheduler", []),
-        },
-        {
-            "path": "cpu:tuning:cachetune:{id}",
-            "xpath": "cputune/cachetune[@vcpus='$id']",
+            "path": "cpu:tuning:vcpusched:{id}:vcpus",
+            "xpath": "cputune/vcpusched[$id]",
             "get": lambda n: str(n.get("vcpus")) if n.get("vcpus") else None,
             "set": lambda n, v: n.set("vcpus", str(v)),
-            "del": salt.utils.xmlutil.del_attribute("vcpus", ["id"]),
+            "del": salt.utils.xmlutil.del_attribute("vcpus"),
+        },
+        {
+            "path": "cpu:tuning:iothreadsched:{id}:scheduler",
+            "xpath": "cputune/iothreadsched[$id]",
+            "get": lambda n: str(n.get("scheduler")),
+            "set": lambda n, v: n.set("scheduler", str(v)),
+            "del": salt.utils.xmlutil.del_attribute(
+                "scheduler", ["priority", "iothreads"]
+            ),
+        },
+        {
+            "path": "cpu:tuning:iothreadsched:{id}:priority",
+            "xpath": "cputune/iothreadsched[$id]",
+            "get": lambda n: str(n.get("priority")) if n.get("priority") else None,
+            "set": lambda n, v: n.set("priority", str(v)),
+            "del": salt.utils.xmlutil.del_attribute("priority"),
+        },
+        {
+            "path": "cpu:tuning:iothreadsched:{id}:iothreads",
+            "xpath": "cputune/iothreadsched[$id]",
+            "get": lambda n: str(n.get("iothreads")) if n.get("iothreads") else None,
+            "set": lambda n, v: n.set("iothreads", str(v)),
+            "del": salt.utils.xmlutil.del_attribute("iothreads"),
+        },
+        {
+            "path": "cpu:tuning:emulatorsched:scheduler",
+            "xpath": "cputune/emulatorsched",
+            "get": lambda n: str(n.get("scheduler")),
+            "set": lambda n, v: n.set("scheduler", str(v)),
+            "del": salt.utils.xmlutil.del_attribute("scheduler", ["priority"]),
+        },
+        {
+            "path": "cpu:tuning:emulatorsched:priority",
+            "xpath": "cputune/emulatorsched",
+            "get": lambda n: str(n.get("priority")) if n.get("priority") else None,
+            "set": lambda n, v: n.set("priority", str(v)),
+            "del": salt.utils.xmlutil.del_attribute("priority"),
         },
         {
             "path": "cpu:tuning:cachetune:{id}:{sid}:level",
             "xpath": "cputune/cachetune[@vcpus='$id']/cache[@id='$sid']",
             "get": lambda n: str(n.get("level")) if n.get("level") else None,
             "set": lambda n, v: n.set("level", str(v)),
-            "del": salt.utils.xmlutil.del_attribute("level", ["id"]),
+            "del": salt.utils.xmlutil.del_attribute("level", ["id", "unit", "vcpus"]),
         },
         {
             "path": "cpu:tuning:cachetune:{id}:{sid}:type",
             "xpath": "cputune/cachetune[@vcpus='$id']/cache[@id='$sid']",
             "get": lambda n: str(n.get("type")) if n.get("type") else None,
             "set": lambda n, v: n.set("type", str(v)),
-            "del": salt.utils.xmlutil.del_attribute("type", ["id"]),
+            "del": salt.utils.xmlutil.del_attribute("type", ["id", "unit", "vcpus"]),
         },
         {
             "path": "cpu:tuning:cachetune:{id}:{sid}:size",
             "xpath": "cputune/cachetune[@vcpus='$id']/cache[@id='$sid']",
             "get": lambda n: str(n.get("size")) if n.get("size") else None,
             "set": lambda n, v: n.set("size", str(v)),
-            "del": salt.utils.xmlutil.del_attribute("size", ["id"]),
+            "del": salt.utils.xmlutil.del_attribute("size", ["id", "unit", "vcpus"]),
         },
         {
             "path": "cpu:tuning:cachetune:{id}:monitor:{sid}",
             "xpath": "cputune/cachetune[@vcpus='$id']/monitor[@vcpus='$sid']",
             "get": lambda n: str(n.get("level")) if n.get("level") else None,
             "set": lambda n, v: n.set("level", str(v)),
-            "del": salt.utils.xmlutil.del_attribute("level", ["id"]),
+            "del": salt.utils.xmlutil.del_attribute("level", ["vcpus"]),
         },
         {
             "path": "cpu:tuning:memorytune:{id}:{sid}",

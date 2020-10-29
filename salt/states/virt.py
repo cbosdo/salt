@@ -371,18 +371,19 @@ def defined(
                     iothread_period: 1000000
                     iothread_quota: -1
                     vcpusched:
-                      0:        # vcpus id
-                        scheduler: fifo
+                      - scheduler: fifo
                         priority: 1
-                      1:
-                        scheduler: fifo
+                      - scheduler: fifo
                         priority: 2
-                      2:
-                        scheduler: rr
+                        vcpus: 1-3
+                      - scheduler: rr
                         priority: 3
+                        vcpus: 4
                     iothreadsched:
+                      - scheduler: batch
                         iothreads: 2
-                        scheduler: batch
+                    emulatorsched:
+                      scheduler: idle
                     cachetune:
                       0-3:      # vcpus set
                         0:      # cache id
