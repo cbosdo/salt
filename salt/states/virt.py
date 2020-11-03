@@ -303,25 +303,28 @@ def defined(
         of the dictionary is documented in  :ref:`init-mem-def`. Both decimal and binary base are supported. Detail unit
         specification is documented  in :ref:`virt-units`. Please note that the value for ``slots`` must be an integer.
 
-        .. code-block:: python
+        .. code-block:: yaml
 
-            {
-                'boot': 1g,
-                'current': 1g,
-                'max': 1g,
-                'slots': 10,
-                'hard_limit': '1024',
-                'soft_limit': '512m',
-                'swap_hard_limit': '1g',
-                'min_guarantee': '512mib',
-                'hugepages': {'0-2': '1g', '3': '2g'},
-                'nosharepages': True,
-                'locked': True,
-                'source': 'file',
-                'access': 'shared',
-                'allocation': 'immediate',
-                'discard': True
-            }
+            boot: 1g
+            current: 1g
+            max: 1g
+            slots: 10
+            hard_limit: 1024
+            soft_limit: 512m
+            swap_hard_limit: 1g
+            min_guarantee: 512mib
+            hugepages:
+              - size: 2m
+              - nodeset: 0-2
+                size: 1g
+              - nodeset: 3
+                size: 2g
+            nosharepages: True
+            locked: True
+            source: file
+            access: shared
+            allocation: immediate
+            discard: True
 
         .. versionchanged:: 3002
 

@@ -959,30 +959,10 @@ def _gen_xml(
 
     context["mem"] = nesthash()
     if isinstance(mem, int):
-        mem = int(mem) * 1024  # MB
-        context["mem"]["boot"] = str(mem)
-        context["mem"]["current"] = str(mem)
+        context["mem"]["boot"] = mem
+        context["mem"]["current"] = mem
     elif isinstance(mem, dict):
-        for tag, val in mem.items():
-            if val:
-                if tag == "slots":
-                    context["mem"]["slots"] = "{}='{}'".format(tag, val)
-                elif tag in [
-                    "boot",
-                    "current",
-                    "max",
-                    "hard_limit",
-                    "soft_limit",
-                    "swap_hard_limit",
-                    "min_guarantee",
-                ]:
-                    context["mem"][tag] = str(int(_handle_unit(val) / 1024))
-                elif tag == "hugepages":
-                    for nodeset, pg_size in val.items():
-                        pg_size = str(int(_handle_unit(pg_size) / 1024))
-                        context["mem"][tag][nodeset] = pg_size
-                else:
-                    context["mem"][tag] = val
+        context["mem"] = nesthash(mem)
 
     context["cpu"] = nesthash()
     if isinstance(cpu, int):
@@ -1993,7 +1973,7 @@ def init(
                 'soft_limit': '512m',
                 'swap_hard_limit': '1g',
                 'min_guarantee': '512mib',
-                'hugepages': {'0-2': '1g', '3': '2g'},
+                'hugepages': [{'nodeset': '0-3,^2', 'size': '1g'}, {'nodeset': '2', 'size': '2m'}],
                 'nosharepages': True,
                 'locked': True,
                 'source': 'file',
@@ -2228,8 +2208,9 @@ def init(
         the guaranteed minimum memory allocation for the guest
 
     hugepages
-        memory allocated using ``hugepages`` instead of the normal native page size. It takes a dictionary using ``nodeset``
-        as the key and ``page size`` as the value. For example ``"hugepages": {"1-4,3": "3g", "3": "1g"}``.
+        memory allocated using ``hugepages`` instead of the normal native page size. It takes a list of
+        dictionaries with ``nodeset`` and ``size`` keys.
+        For example ``"hugepages": [{"nodeset": "1-4,^3", "size": "2m"}, {"nodeset": "3", "size": "1g"}]``.
 
     nosharepages
         boolean value to instruct hypervisor to disable shared pages (memory merge, KSM) for this domain
@@ -3064,12 +3045,19 @@ def update(
             "del": salt.utils.xmlutil.del_attribute("dev"),
         },
         {
-            "path": "mem:hugepages:{id}",
+            "path": "mem:hugepages:{id}:size",
             "convert": _handle_unit,
-            "xpath": "memoryBacking/hugepages/page[@nodeset='$id']",
+            "xpath": "memoryBacking/hugepages/page[$id]",
             "get": _get_with_unit,
             "set": _set_size_with_byte_unit,
-            "del": salt.utils.xmlutil.del_attribute("size", ["nodeset"]),
+            "del": salt.utils.xmlutil.del_attribute("size", ["unit", "nodeset"]),
+        },
+        {
+            "path": "mem:hugepages:{id}:nodeset",
+            "xpath": "memoryBacking/hugepages/page[$id]",
+            "get": lambda n: n.get("nodeset"),
+            "set": lambda n, v: n.set("nodeset", v),
+            "del": salt.utils.xmlutil.del_attribute("nodeset"),
         },
         {"path": "mem:nosharepages", "xpath": "memoryBacking/nosharepages"},
         {"path": "mem:locked", "xpath": "memoryBacking/locked"},
@@ -3092,26 +3080,6 @@ def update(
             "set": lambda n, v: n.set("mode", str(v)),
         },
         {"path": "mem:discard", "xpath": "memoryBacking/discard"},
-        {"path": "mem:nosharepages", "xpath": "memoryBacking/nosharepages"},
-        {"path": "mem:locked", "xpath": "memoryBacking/locked"},
-        {
-            "path": "mem:source",
-            "xpath": "memoryBacking/source",
-            "get": lambda n: str(n.get("type")) if n.get("type") else None,
-            "set": lambda n, v: n.set("type", str(v)),
-        },
-        {
-            "path": "mem:access",
-            "xpath": "memoryBacking/access",
-            "get": lambda n: str(n.get("mode")) if n.get("mode") else None,
-            "set": lambda n, v: n.set("mode", str(v)),
-        },
-        {
-            "path": "mem:allocation",
-            "xpath": "memoryBacking/allocation",
-            "get": lambda n: str(n.get("mode")) if n.get("mode") else None,
-            "set": lambda n, v: n.set("mode", str(v)),
-        },
         {
             "path": "cpu",
             "xpath": "vcpu",

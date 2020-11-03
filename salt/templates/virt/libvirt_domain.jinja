@@ -53,27 +53,27 @@
           </cpu>
         {%- endif %}
         {%- if mem.max %}
-        <maxMemory {{ mem.get('slots', '') }} unit='KiB'>{{ mem.max }}</maxMemory>
+        <maxMemory {{ opt_attribute(mem, 'slots') }} unit='KiB'>{{ to_kib(mem.max) }}</maxMemory>
         {%- endif %}
         {%- if mem.boot %}
-        <memory unit='KiB'>{{ mem.boot }}</memory>
+        <memory unit='KiB'>{{ to_kib(mem.boot) }}</memory>
         {%- endif %}
         {%- if mem.current %}
-        <currentMemory unit='KiB'>{{ mem.current }}</currentMemory>
+        <currentMemory unit='KiB'>{{ to_kib(mem.current) }}</currentMemory>
         {%- endif %}
         {%- if mem %}
         <memtune>
             {%- if 'hard_limit' in mem and mem.hard_limit %}
-                <hard_limit unit="KiB">{{ mem.hard_limit }}</hard_limit>
+                <hard_limit unit="KiB">{{ to_kib(mem.hard_limit) }}</hard_limit>
             {%- endif %}
             {%- if 'soft_limit' in mem and mem.soft_limit %}
-                <soft_limit unit="KiB">{{ mem.soft_limit }}</soft_limit>
+                <soft_limit unit="KiB">{{ to_kib(mem.soft_limit) }}</soft_limit>
             {%- endif %}
             {%- if 'swap_hard_limit' in mem and mem.swap_hard_limit %}
-                <swap_hard_limit unit="KiB">{{ mem.swap_hard_limit }}</swap_hard_limit>
+                <swap_hard_limit unit="KiB">{{ to_kib(mem.swap_hard_limit) }}</swap_hard_limit>
             {%- endif %}
             {%- if 'min_guarantee' in mem and mem.min_guarantee %}
-                <min_guarantee unit="KiB">{{ mem.min_guarantee }}</min_guarantee>
+                <min_guarantee unit="KiB">{{ to_kib(mem.min_guarantee) }}</min_guarantee>
             {%- endif %}
         </memtune>
         {%- endif %}
@@ -95,8 +95,10 @@
         <memoryBacking>
             {%- if mem.hugepages %}
             <hugepages>
-            {%- for k, v in mem.hugepages.items() %}
-            <page size="{{ v }}"  nodeset='{{ k }}' unit="KiB"/>
+            {%- for page in mem.hugepages %}
+            <page size="{{ to_kib(page.get("size")) }}" unit="KiB"
+                {%- if page.get("nodeset") or page.get("nodeset") == 0 %} nodeset='{{ page.get("nodeset") }}'{% endif -%}
+            />
             {%- endfor %}
             </hugepages>
             {%- if mem.nosharepages %}
@@ -112,7 +114,7 @@
             <access mode="{{ mem.access }}"/>
             {%- endif %}
             {%- if mem.allocation %}
-            <access mode="{{ mem.allocation }}"/>
+            <allocation mode="{{ mem.allocation }}"/>
             {%- endif %}
             {%- if mem.discard %}
             <discard/>

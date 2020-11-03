@@ -481,6 +481,17 @@ class VirtTestCase(TestCase, LoaderModuleMockMixin):
                 "soft_limit": "512m",
                 "swap_hard_limit": "1g",
                 "min_guarantee": "256m",
+                "hugepages": [
+                    {"nodeset": "", "size": "128m"},
+                    {"nodeset": "0", "size": "256m"},
+                    {"nodeset": "1", "size": "512m"},
+                ],
+                "nosharepages": True,
+                "locked": True,
+                "source": "file",
+                "access": "shared",
+                "allocation": "immediate",
+                "discard": True,
             },
             diskp,
             nicp,
@@ -497,6 +508,23 @@ class VirtTestCase(TestCase, LoaderModuleMockMixin):
         self.assertEqualUnit(root.find("memtune/soft_limit"), 512 * 1024)
         self.assertEqualUnit(root.find("memtune/swap_hard_limit"), 1024 ** 2)
         self.assertEqualUnit(root.find("memtune/min_guarantee"), 256 * 1024)
+        self.assertEqual(
+            [
+                {"nodeset": page.get("nodeset"), "size": page.get("size")}
+                for page in root.findall("memoryBacking/hugepages/page")
+            ],
+            [
+                {"nodeset": None, "size": str(128 * 1024)},
+                {"nodeset": "0", "size": str(256 * 1024)},
+                {"nodeset": "1", "size": str(512 * 1024)},
+            ],
+        )
+        self.assertIsNotNone(root.find("memoryBacking/nosharepages"))
+        self.assertIsNotNone(root.find("memoryBacking/locked"))
+        self.assertIsNotNone(root.find("memoryBacking/discard"))
+        self.assertEqual(root.find("memoryBacking/source").get("type"), "file")
+        self.assertEqual(root.find("memoryBacking/access").get("mode"), "shared")
+        self.assertEqual(root.find("memoryBacking/allocation").get("mode"), "immediate")
 
     def test_gen_xml_cpu(self):
         """
@@ -2600,7 +2628,10 @@ class VirtTestCase(TestCase, LoaderModuleMockMixin):
 
         # update memory backing case
         mem_back = {
-            "hugepages": {"1-5,4": "1g", "4": "2g"},
+            "hugepages": [
+                {"nodeset": "1-5,4", "size": "1g"},
+                {"nodeset": "4", "size": "2g"},
+            ],
             "nosharepages": True,
             "locked": True,
             "source": "file",
@@ -2618,13 +2649,15 @@ class VirtTestCase(TestCase, LoaderModuleMockMixin):
             virt.update("my_vm", mem=mem_back),
         )
         setxml = ET.fromstring(define_mock.call_args[0][0])
-        self.assertEqual(
-            setxml.find("./memoryBacking/hugepages/page[@nodeset='1-5,4']").get("size"),
-            str(1024 ** 3),
-        )
-        self.assertEqual(
-            setxml.find("./memoryBacking/hugepages/page[@nodeset='1-5,4']").get("unit"),
-            "bytes",
+        self.assertDictEqual(
+            {
+                p.get("nodeset"): {"size": p.get("size"), "unit": p.get("unit")}
+                for p in setxml.findall("memoryBacking/hugepages/page")
+            },
+            {
+                "1-5,4": {"size": str(1024 ** 3), "unit": "bytes"},
+                "4": {"size": str(2 * 1024 ** 3), "unit": "bytes"},
+            },
         )
         self.assertNotEqual(setxml.find("./memoryBacking/nosharepages"), None)
         self.assertNotEqual(setxml.find("./memoryBacking/locked"), None)
@@ -4338,6 +4371,7 @@ class VirtTestCase(TestCase, LoaderModuleMockMixin):
               <vcpu placement='auto'>1</vcpu>
               <memoryBacking>
                 <hugepages>
+                  <page size="2048" unit="KiB"/>
                   <page size="3145728" nodeset="1-4,3" unit="KiB"/>
                   <page size="1048576" nodeset="3" unit="KiB"/>
                 </hugepages>
@@ -4359,7 +4393,10 @@ class VirtTestCase(TestCase, LoaderModuleMockMixin):
 
         # update memory backing case
         mem_back_param = {
-            "hugepages": {"1-4,3": "1g", "3": "2g"},
+            "hugepages": [
+                {"nodeset": "1-4,3", "size": "1g"},
+                {"nodeset": "3", "size": "2g"},
+            ],
             "nosharepages": None,
             "locked": None,
             "source": "anonymous",
@@ -4377,18 +4414,15 @@ class VirtTestCase(TestCase, LoaderModuleMockMixin):
             virt.update("vm_with_memback_param", mem=mem_back_param),
         )
         setxml = ET.fromstring(define_mock.call_args[0][0])
-        self.assertEqual(
-            setxml.find("./memoryBacking/hugepages/page[@nodeset='1-4,3']").attrib[
-                "size"
-            ],
-            "1073741824",
-        )
-        self.assertEqual(
-            setxml.find("./memoryBacking/hugepages/page[@nodeset='3']").attrib["size"],
-            "2147483648",
-        )
-        self.assertEqual(
-            setxml.find("./memoryBacking/hugepages/page").get("unit"), "bytes"
+        self.assertDictEqual(
+            {
+                p.get("nodeset"): {"size": p.get("size"), "unit": p.get("unit")}
+                for p in setxml.findall("memoryBacking/hugepages/page")
+            },
+            {
+                "1-4,3": {"size": str(1024 ** 3), "unit": "bytes"},
+                "3": {"size": str(2 * 1024 ** 3), "unit": "bytes"},
+            },
         )
         self.assertEqual(setxml.find("./memoryBacking/nosharepages"), None)
         self.assertEqual(setxml.find("./memoryBacking/locked"), None)
@@ -4403,7 +4437,11 @@ class VirtTestCase(TestCase, LoaderModuleMockMixin):
         )
         self.assertEqual(setxml.find("./memoryBacking/discard"), None)
 
-        unchanged_page = {"1-4,3": "3g", "3": "1g"}
+        unchanged_page = [
+            {"nodeset": "", "size": "2m"},
+            {"nodeset": "1-4,3", "size": "3g"},
+            {"nodeset": "3", "size": "1g"},
+        ]
 
         self.assertEqual(
             {
