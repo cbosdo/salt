@@ -498,6 +498,146 @@ class VirtTestCase(TestCase, LoaderModuleMockMixin):
         self.assertEqualUnit(root.find("memtune/swap_hard_limit"), 1024 ** 2)
         self.assertEqualUnit(root.find("memtune/min_guarantee"), 256 * 1024)
 
+    def test_gen_xml_cpu(self):
+        """
+        Test virt._gen_xml() with CPU advanced properties
+        """
+        diskp = virt._disk_profile(self.mock_conn, "default", "kvm", [], "hello")
+        nicp = virt._nic_profile("default", "kvm")
+        xml_data = virt._gen_xml(
+            self.mock_conn,
+            "hello",
+            {
+                "maximum": 12,
+                "placement": "static",
+                "cpuset": "0-11",
+                "current": 5,
+                "mode": "custom",
+                "match": "minimum",
+                "check": "full",
+                "vendor": "Intel",
+                "model": {
+                    "name": "core2duo",
+                    "fallback": "allow",
+                    "vendor_id": "GenuineIntel",
+                },
+                "cache": {"level": 3, "mode": "emulate"},
+                "features": {"lahf": "optional", "vmx": "require"},
+                "vcpus": {
+                    0: {"enabled": True, "hotpluggable": True},
+                    1: {"enabled": False},
+                },
+            },
+            512,
+            diskp,
+            nicp,
+            "kvm",
+            "hvm",
+            "x86_64",
+        )
+        root = ET.fromstring(xml_data)
+        self.assertEqual(root.find("vcpu").get("current"), "5")
+        self.assertEqual(root.find("vcpu").get("placement"), "static")
+        self.assertEqual(root.find("vcpu").get("cpuset"), "0-11")
+        self.assertEqual(root.find("vcpu").text, "12")
+        self.assertEqual(root.find("cpu").get("match"), "minimum")
+        self.assertEqual(root.find("cpu").get("mode"), "custom")
+        self.assertEqual(root.find("cpu").get("check"), "full")
+        self.assertEqual(root.find("cpu/vendor").text, "Intel")
+        self.assertEqual(root.find("cpu/model").text, "core2duo")
+        self.assertEqual(root.find("cpu/model").get("fallback"), "allow")
+        self.assertEqual(root.find("cpu/model").get("vendor_id"), "GenuineIntel")
+        self.assertEqual(root.find("cpu/cache").get("level"), "3")
+        self.assertEqual(root.find("cpu/cache").get("mode"), "emulate")
+        self.assertEqual(
+            {f.get("name"): f.get("policy") for f in root.findall("cpu/feature")},
+            {"lahf": "optional", "vmx": "require"},
+        )
+        self.assertEqual(
+            {
+                v.get("id"): {
+                    "enabled": v.get("enabled"),
+                    "hotpluggable": v.get("hotpluggable"),
+                }
+                for v in root.findall("vcpus/vcpu")
+            },
+            {
+                "0": {"enabled": "yes", "hotpluggable": "yes"},
+                "1": {"enabled": "no", "hotpluggable": None},
+            },
+        )
+
+    def test_gen_xml_cpu_topology(self):
+        """
+        Test virt._gen_xml() with CPU topology
+        """
+        diskp = virt._disk_profile(self.mock_conn, "default", "kvm", [], "hello")
+        nicp = virt._nic_profile("default", "kvm")
+        xml_data = virt._gen_xml(
+            self.mock_conn,
+            "hello",
+            {"maximum": 1, "topology": {"sockets": 4, "cores": 16, "threads": 2}},
+            512,
+            diskp,
+            nicp,
+            "kvm",
+            "hvm",
+            "x86_64",
+        )
+        root = ET.fromstring(xml_data)
+        self.assertEqual(root.find("cpu/topology").get("sockets"), "4")
+        self.assertEqual(root.find("cpu/topology").get("cores"), "16")
+        self.assertEqual(root.find("cpu/topology").get("threads"), "2")
+
+    def test_gen_xml_cpu_numa(self):
+        """
+        Test virt._gen_xml() with CPU numa settings
+        """
+        diskp = virt._disk_profile(self.mock_conn, "default", "kvm", [], "hello")
+        nicp = virt._nic_profile("default", "kvm")
+        xml_data = virt._gen_xml(
+            self.mock_conn,
+            "hello",
+            {
+                "maximum": 1,
+                "numa": {
+                    0: {
+                        "cpus": "0-3",
+                        "memory": "1g",
+                        "discard": True,
+                        "distances": {0: 10, 1: 20},
+                    },
+                    1: {"cpus": "4-7", "memory": "2g", "distances": {0: 20, 1: 10}},
+                },
+            },
+            512,
+            diskp,
+            nicp,
+            "kvm",
+            "hvm",
+            "x86_64",
+        )
+        root = ET.fromstring(xml_data)
+        cell0 = root.find("cpu/numa/cell[@id='0']")
+        self.assertEqual(cell0.get("cpus"), "0-3")
+        self.assertIsNone(cell0.get("unit"))
+        self.assertEqual(cell0.get("memory"), str(1024 ** 2))
+        self.assertEqual(cell0.get("discard"), "yes")
+        self.assertEqual(
+            {d.get("id"): d.get("value") for d in cell0.findall("distances/sibling")},
+            {"0": "10", "1": "20"},
+        )
+
+        cell1 = root.find("cpu/numa/cell[@id='1']")
+        self.assertEqual(cell1.get("cpus"), "4-7")
+        self.assertIsNone(cell0.get("unit"))
+        self.assertEqual(cell1.get("memory"), str(2 * 1024 ** 2))
+        self.assertFalse("discard" in cell1.keys())
+        self.assertEqual(
+            {d.get("id"): d.get("value") for d in cell1.findall("distances/sibling")},
+            {"0": "20", "1": "10"},
+        )
+
     def test_default_disk_profile_hypervisor_esxi(self):
         """
         Test virt._disk_profile() default ESXi profile
