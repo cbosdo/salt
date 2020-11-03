@@ -30,7 +30,9 @@
         {%- if numatune %}
         <numatune>
             {%- if 'memory' in numatune and numatune.memory %}
-                <memory mode='{{ numatune.memory.mode }}' nodeset='{{ numatune.memory.nodeset }}'/>
+                <memory mode='{{ numatune.memory.mode }}'
+                    {%- if numatune.memory.nodeset %}nodeset='{{ numatune.memory.nodeset }}'{%- endif %}
+                />
             {%- endif %}
             {%- if 'memnodes' in numatune and numatune.memnodes %}
                 {%- for cell_id in numatune['memnodes'] %}
