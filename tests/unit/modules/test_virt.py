@@ -4791,11 +4791,13 @@ class VirtTestCase(TestCase, LoaderModuleMockMixin):
         )
         self.assertEqual(setxml.find("./memoryBacking/discard"), None)
 
-        unchanged_page = [
-            {"nodeset": "", "size": "2m"},
-            {"nodeset": "1-4,3", "size": "3g"},
-            {"nodeset": "3", "size": "1g"},
-        ]
+        unchanged_page = {
+            "hugepages": [
+                {"size": "2m"},
+                {"nodeset": "1-4,3", "size": "3g"},
+                {"nodeset": "3", "size": "1g"},
+            ],
+        }
 
         self.assertEqual(
             {
